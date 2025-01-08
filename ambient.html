@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ambient Sound Generator</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: linear-gradient(135deg, #1c1f26, #4e5462);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+      h1 {
+        margin-bottom: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        border: none;
+        border-radius: 5px;
+        background-color: #4caf50;
+        color: white;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Ambient Sound Generator</h1>
+    <p>Click the button to tune into the evolving soundscape.</p>
+    <button id="startButton">Start Sound</button>
+
+    <script>
+      const startButton = document.getElementById("startButton");
+
+      startButton.addEventListener("click", () => {
+        startButton.disabled = true; // Disable button after clicking
+        startButton.textContent = "Playing...";
+        startAmbientSound();
+      });
+
+      function startAmbientSound() {
+        const audioContext = new (window.AudioContext ||
+          window.webkitAudioContext)();
+
+        // Create a simple reverb effect using delay and feedback
+        function createReverb() {
+          const delay = audioContext.createDelay();
+          const feedback = audioContext.createGain();
+          const filter = audioContext.createBiquadFilter();
+
+          delay.delayTime.value = 0.3; // Short delay for reverb effect
+          feedback.gain.value = 0.6; // Feedback for reverb depth
+          filter.type = "lowpass";
+          filter.frequency.value = 1500; // Soften the reverb
+
+          delay.connect(feedback).connect(filter).connect(delay);
+          return { input: delay, output: filter };
+        }
+
+        // Function to create a sound layer
+        function createOscillator(frequency, gainValue, modulationFreq = 0) {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          const reverb = createReverb();
+
+          oscillator.frequency.value = frequency;
+          gainNode.gain.value = gainValue;
+
+          oscillator.connect(gainNode).connect(reverb.input);
+          reverb.output.connect(audioContext.destination);
+          oscillator.start();
+
+          // Optional modulation for evolving sounds
+          if (modulationFreq > 0) {
+            const lfo = audioContext.createOscillator();
+            const lfoGain = audioContext.createGain();
+            lfo.frequency.value = modulationFreq;
+            lfoGain.gain.value = frequency * 0.1; // Modulation depth
+
+            lfo.connect(lfoGain).connect(oscillator.frequency);
+            lfo.start();
+          }
+
+          return oscillator;
+        }
+
+        // Generate layers of sound
+        function generateSoundscape() {
+          const currentTime = new Date().getHours();
+
+          // Base layer (drone)
+          createOscillator(50 + currentTime, 0.2);
+
+          // Higher harmonic layer
+          createOscillator(200 + (currentTime % 12) * 10, 0.1, 0.1);
+
+          // Random chirps
+          setInterval(() => {
+            const chirpOscillator = createOscillator(
+              Math.random() * 2000 + 500,
+              0.05
+            );
+            setTimeout(() => chirpOscillator.stop(), 300); // Short burst
+          }, 4000);
+        }
+
+        generateSoundscape();
+      }
+    </script>
+  </body>
+</html>
