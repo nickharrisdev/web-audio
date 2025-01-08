@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lydian Ambient Generator</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: linear-gradient(135deg, #1c1f26, #4e5462);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+      h1 {
+        margin-bottom: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        border: none;
+        border-radius: 5px;
+        background-color: #4caf50;
+        color: white;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Lydian Ambient Generator</h1>
+    <p>Click the button to start improvisations in the Lydian mode.</p>
+    <button id="startButton">Start Improvisation</button>
+
+    <script>
+      const audioContext = new (window.AudioContext ||
+        window.webkitAudioContext)();
+
+      // Frequencies for C Lydian
+      const lydianFrequencies = [
+        261.63, // C
+        293.66, // D
+        329.63, // E
+        370.0, // F#
+        392.0, // G
+        440.0, // A
+        493.88, // B
+      ];
+
+      // Create a simple reverb effect using delay and feedback
+      function createReverb() {
+        const delay = audioContext.createDelay();
+        const feedback = audioContext.createGain();
+        const filter = audioContext.createBiquadFilter();
+
+        delay.delayTime.value = 0.3; // Short delay for reverb effect
+        feedback.gain.value = 0.6; // Feedback for reverb depth
+        filter.type = "lowpass";
+        filter.frequency.value = 1500; // Soften the reverb
+
+        delay.connect(feedback).connect(filter).connect(delay);
+        return { input: delay, output: filter };
+      }
+
+      // Function to create a sound layer
+      function createOscillator(frequency, gainValue, modulationFreq = 0) {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        const reverb = createReverb();
+
+        oscillator.frequency.value = frequency;
+        gainNode.gain.value = gainValue;
+
+        oscillator.connect(gainNode).connect(reverb.input);
+        reverb.output.connect(audioContext.destination);
+        oscillator.start();
+
+        // Optional modulation for evolving sounds
+        if (modulationFreq > 0) {
+          const lfo = audioContext.createOscillator();
+          const lfoGain = audioContext.createGain();
+          lfo.frequency.value = modulationFreq;
+          lfoGain.gain.value = frequency * 0.1; // Modulation depth
+
+          lfo.connect(lfoGain).connect(oscillator.frequency);
+          lfo.start();
+        }
+
+        return oscillator;
+      }
+
+      // Function to play a note
+      function playNote(frequency, duration) {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        const reverb = createReverb();
+        oscillator.frequency.value = frequency;
+        oscillator.type = "sine";
+        oscillator.connect(gainNode).connect(reverb.input);
+        reverb.output.connect(audioContext.destination);
+
+        oscillator.start();
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + duration);
+      }
+
+      // Play Lydian improvisation
+      function playLydianMelody() {
+        const duration = 0.5; // 100ms per note
+        const currentTime = new Date().getHours();
+        // Base layer (drone)
+        createOscillator(lydianFrequencies[0], 0.2);
+        createOscillator(lydianFrequencies[4], 0.2);
+        setInterval(() => {
+          const randomNote =
+            lydianFrequencies[
+              Math.floor(Math.random() * lydianFrequencies.length)
+            ];
+          playNote(randomNote, duration);
+        }, duration * 1000);
+      }
+
+      // Button event listener
+      const startButton = document.getElementById("startButton");
+      startButton.addEventListener("click", () => {
+        startButton.disabled = true;
+        playLydianMelody();
+      });
+    </script>
+  </body>
+</html>
