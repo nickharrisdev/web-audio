@@ -52,6 +52,12 @@
         440.0, // A
         493.88, // B
       ];
+      const oneOctaveLowerLydianFrequencies = lydianFrequencies.map(
+        (freq) => freq / 2
+      );
+      const oneOctaveHigherLydianFrequencies = lydianFrequencies.map(
+        (freq) => freq * 2
+      );
 
       // Create a simple reverb effect using delay and feedback
       function createReverb() {
@@ -69,28 +75,19 @@
       }
 
       // Function to create a sound layer
-      function createOscillator(frequency, gainValue, modulationFreq = 0) {
+      function createOscillator(frequency, gainValue, panValue = 0) {
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
+        const panner = audioContext.createStereoPanner();
         const reverb = createReverb();
 
         oscillator.frequency.value = frequency;
         gainNode.gain.value = gainValue;
+        panner.pan.value = panValue; // Set the panning value
 
-        oscillator.connect(gainNode).connect(reverb.input);
+        oscillator.connect(gainNode).connect(panner).connect(reverb.input);
         reverb.output.connect(audioContext.destination);
         oscillator.start();
-
-        // Optional modulation for evolving sounds
-        if (modulationFreq > 0) {
-          const lfo = audioContext.createOscillator();
-          const lfoGain = audioContext.createGain();
-          lfo.frequency.value = modulationFreq;
-          lfoGain.gain.value = frequency * 0.1; // Modulation depth
-
-          lfo.connect(lfoGain).connect(oscillator.frequency);
-          lfo.start();
-        }
 
         return oscillator;
       }
@@ -100,30 +97,76 @@
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         const reverb = createReverb();
+        const panner = audioContext.createStereoPanner();
+        panner.pan.value = Math.random() - 0.5;
         oscillator.frequency.value = frequency;
         oscillator.type = "sine";
         oscillator.connect(gainNode).connect(reverb.input);
         reverb.output.connect(audioContext.destination);
 
         oscillator.start();
-        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + duration);
       }
 
       // Play Lydian improvisation
       function playLydianMelody() {
-        const duration = 0.5; // 100ms per note
-        const currentTime = new Date().getHours();
-        // Base layer (drone)
-        createOscillator(lydianFrequencies[0], 0.2);
-        createOscillator(lydianFrequencies[4], 0.2);
-        setInterval(() => {
+        const minDuration = 0.3; // Minimum duration in seconds
+        const maxDuration = 1.0; // Maximum duration in seconds
+        const droneChangeInterval = 10; // Interval in seconds for original notes
+        const droneChangeDownInterval = 5; // Interval in seconds for higher notes
+
+        // Base layer (drone) with panning
+        let droneOscillators = [
+          createOscillator(lydianFrequencies[0], 0.2, -0.5), // C, panned left
+          createOscillator(lydianFrequencies[4], 0.2, 0.5), // G, panned right
+        ];
+
+        let isOriginalNotes = true;
+
+        function changeDroneNotes() {
+          // Stop current drone oscillators
+          droneOscillators.forEach((osc) => osc.stop());
+
+          if (isOriginalNotes) {
+            // Move up one whole step (C to D, G to A) with panning
+            droneOscillators = [
+              createOscillator(lydianFrequencies[1], 0.2, -0.5), // D, panned left
+              createOscillator(lydianFrequencies[5], 0.2, 0.5), // A, panned right
+            ];
+            // Schedule return to original notes
+            setTimeout(changeDroneNotes, droneChangeDownInterval * 1000);
+          } else {
+            // Return to original notes
+            droneOscillators = [
+              createOscillator(lydianFrequencies[0], 0.2, -0.5), // C, panned left
+              createOscillator(lydianFrequencies[4], 0.2, 0.5), // G, panned right
+            ];
+            // Schedule move to higher notes
+            setTimeout(changeDroneNotes, droneChangeInterval * 1000);
+          }
+
+          // Toggle the state
+          isOriginalNotes = !isOriginalNotes;
+        }
+
+        function playRandomNote(duration = 0.5) {
           const randomNote =
             lydianFrequencies[
               Math.floor(Math.random() * lydianFrequencies.length)
             ];
-          playNote(randomNote, duration);
-        }, duration * 1000);
+          console.log(duration);
+          const randomDuration = duration;
+          // Math.random() * (maxDuration - minDuration) + minDuration;
+          playNote(randomNote, randomDuration);
+          setTimeout(playRandomNote, randomDuration * 1000);
+        }
+
+        // playRandomNote(0.025);
+        // playRandomNote();
+        // playRandomNote(0.25);
+        playRandomNote(0.5);
+        changeDroneNotes(); // Start the drone note changes
       }
 
       // Button event listener
