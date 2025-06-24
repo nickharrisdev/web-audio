@@ -19,6 +19,11 @@
       h1 {
         margin-bottom: 20px;
       }
+      .button-group {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
       button {
         padding: 10px 20px;
         font-size: 16px;
@@ -31,12 +36,34 @@
       button:hover {
         background-color: #45a049;
       }
+      button:disabled {
+        background-color: #666;
+        cursor: not-allowed;
+      }
+      .stop-btn {
+        background-color: #f44336;
+      }
+      .stop-btn:hover:not(:disabled) {
+        background-color: #d32f2f;
+      }
+      .status {
+        margin-bottom: 20px;
+        padding: 10px;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.1);
+      }
     </style>
   </head>
   <body>
     <h1>Lydian Ambient Generator</h1>
     <p>Click the button to start improvisations in the Lydian mode.</p>
-    <button id="startButton">Start Improvisation</button>
+
+    <div class="status" id="status">Ready to play</div>
+
+    <div class="button-group">
+      <button id="startButton">Start Improvisation</button>
+      <button id="stopButton" class="stop-btn" disabled>Stop</button>
+    </div>
 
     <script>
       const audioContext = new (window.AudioContext ||
@@ -58,6 +85,11 @@
       const oneOctaveHigherLydianFrequencies = lydianFrequencies.map(
         (freq) => freq * 2
       );
+
+      // Global variables to track playing state
+      let isPlaying = false;
+      let droneOscillators = [];
+      let noteTimeouts = [];
 
       // Create a simple reverb effect using delay and feedback
       function createReverb() {
@@ -109,15 +141,42 @@
         oscillator.stop(audioContext.currentTime + duration);
       }
 
+      // Function to stop all audio
+      function stopAllAudio() {
+        // Stop drone oscillators
+        droneOscillators.forEach((osc) => {
+          try {
+            osc.stop();
+          } catch (e) {
+            // Oscillator might already be stopped
+          }
+        });
+        droneOscillators = [];
+
+        // Clear all timeouts
+        noteTimeouts.forEach((timeout) => clearTimeout(timeout));
+        noteTimeouts = [];
+
+        isPlaying = false;
+        updateStatus("Stopped");
+      }
+
+      // Function to update status display
+      function updateStatus(text) {
+        document.getElementById("status").textContent = text;
+      }
+
       // Play Lydian improvisation
       function playLydianMelody() {
+        if (!isPlaying) return;
+
         const minDuration = 0.3; // Minimum duration in seconds
         const maxDuration = 1.0; // Maximum duration in seconds
         const droneChangeInterval = 10; // Interval in seconds for original notes
         const droneChangeDownInterval = 5; // Interval in seconds for higher notes
 
         // Base layer (drone) with panning
-        let droneOscillators = [
+        droneOscillators = [
           createOscillator(lydianFrequencies[0], 0.2, -0.5), // C, panned left
           createOscillator(lydianFrequencies[4], 0.2, 0.5), // G, panned right
         ];
@@ -125,8 +184,16 @@
         let isOriginalNotes = true;
 
         function changeDroneNotes() {
+          if (!isPlaying) return;
+
           // Stop current drone oscillators
-          droneOscillators.forEach((osc) => osc.stop());
+          droneOscillators.forEach((osc) => {
+            try {
+              osc.stop();
+            } catch (e) {
+              // Oscillator might already be stopped
+            }
+          });
 
           if (isOriginalNotes) {
             // Move up one whole step (C to D, G to A) with panning
@@ -135,7 +202,11 @@
               createOscillator(lydianFrequencies[5], 0.2, 0.5), // A, panned right
             ];
             // Schedule return to original notes
-            setTimeout(changeDroneNotes, droneChangeDownInterval * 1000);
+            const timeout = setTimeout(
+              changeDroneNotes,
+              droneChangeDownInterval * 1000
+            );
+            noteTimeouts.push(timeout);
           } else {
             // Return to original notes
             droneOscillators = [
@@ -143,7 +214,11 @@
               createOscillator(lydianFrequencies[4], 0.2, 0.5), // G, panned right
             ];
             // Schedule move to higher notes
-            setTimeout(changeDroneNotes, droneChangeInterval * 1000);
+            const timeout = setTimeout(
+              changeDroneNotes,
+              droneChangeInterval * 1000
+            );
+            noteTimeouts.push(timeout);
           }
 
           // Toggle the state
@@ -151,29 +226,48 @@
         }
 
         function playRandomNote(duration = 0.5) {
+          if (!isPlaying) return;
+
           const randomNote =
             lydianFrequencies[
               Math.floor(Math.random() * lydianFrequencies.length)
             ];
-          console.log(duration);
           const randomDuration = duration;
-          // Math.random() * (maxDuration - minDuration) + minDuration;
           playNote(randomNote, randomDuration);
-          setTimeout(playRandomNote, randomDuration * 1000);
+
+          // Schedule next note
+          const timeout = setTimeout(
+            () => playRandomNote(randomDuration),
+            randomDuration * 1000
+          );
+          noteTimeouts.push(timeout);
         }
 
-        // playRandomNote(0.025);
-        // playRandomNote();
-        // playRandomNote(0.25);
         playRandomNote(0.5);
         changeDroneNotes(); // Start the drone note changes
       }
 
-      // Button event listener
+      // Button event listeners
       const startButton = document.getElementById("startButton");
-      startButton.addEventListener("click", () => {
+      const stopButton = document.getElementById("stopButton");
+
+      startButton.addEventListener("click", async () => {
+        // Resume audio context if suspended
+        if (audioContext.state === "suspended") {
+          await audioContext.resume();
+        }
+
+        isPlaying = true;
+        updateStatus("Playing...");
         startButton.disabled = true;
+        stopButton.disabled = false;
         playLydianMelody();
+      });
+
+      stopButton.addEventListener("click", () => {
+        stopAllAudio();
+        startButton.disabled = false;
+        stopButton.disabled = true;
       });
     </script>
   </body>

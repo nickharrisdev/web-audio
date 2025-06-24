@@ -19,6 +19,11 @@
       h1 {
         margin-bottom: 20px;
       }
+      .button-group {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
       button {
         padding: 10px 20px;
         font-size: 16px;
@@ -31,25 +36,93 @@
       button:hover {
         background-color: #45a049;
       }
+      button:disabled {
+        background-color: #666;
+        cursor: not-allowed;
+      }
+      .stop-btn {
+        background-color: #f44336;
+      }
+      .stop-btn:hover:not(:disabled) {
+        background-color: #d32f2f;
+      }
+      .status {
+        margin-bottom: 20px;
+        padding: 10px;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.1);
+      }
     </style>
   </head>
   <body>
     <h1>Ambient Sound Generator</h1>
     <p>Click the button to tune into the evolving soundscape.</p>
-    <button id="startButton">Start Sound</button>
+
+    <div class="status" id="status">Ready to play</div>
+
+    <div class="button-group">
+      <button id="startButton">Start Sound</button>
+      <button id="stopButton" class="stop-btn" disabled>Stop</button>
+    </div>
 
     <script>
       const startButton = document.getElementById("startButton");
+      const stopButton = document.getElementById("stopButton");
 
-      startButton.addEventListener("click", () => {
-        startButton.disabled = true; // Disable button after clicking
-        startButton.textContent = "Playing...";
+      // Global variables to track playing state
+      let isPlaying = false;
+      let audioContext = null;
+      let oscillators = [];
+      let intervals = [];
+
+      // Function to stop all audio
+      function stopAllAudio() {
+        // Stop all oscillators
+        oscillators.forEach((osc) => {
+          try {
+            osc.stop();
+          } catch (e) {
+            // Oscillator might already be stopped
+          }
+        });
+        oscillators = [];
+
+        // Clear all intervals
+        intervals.forEach((interval) => clearInterval(interval));
+        intervals = [];
+
+        isPlaying = false;
+        updateStatus("Stopped");
+      }
+
+      // Function to update status display
+      function updateStatus(text) {
+        document.getElementById("status").textContent = text;
+      }
+
+      startButton.addEventListener("click", async () => {
+        if (audioContext && audioContext.state === "suspended") {
+          await audioContext.resume();
+        } else {
+          audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+        }
+
+        isPlaying = true;
+        updateStatus("Playing...");
+        startButton.disabled = true;
+        stopButton.disabled = false;
         startAmbientSound();
       });
 
+      stopButton.addEventListener("click", () => {
+        stopAllAudio();
+        startButton.disabled = false;
+        stopButton.disabled = true;
+      });
+
       function startAmbientSound() {
-        const audioContext = new (window.AudioContext ||
-          window.webkitAudioContext)();
+        if (!isPlaying) return;
 
         // Create a simple reverb effect using delay and feedback
         function createReverb() {
@@ -79,6 +152,9 @@
           reverb.output.connect(audioContext.destination);
           oscillator.start();
 
+          // Add to global oscillators array for cleanup
+          oscillators.push(oscillator);
+
           // Optional modulation for evolving sounds
           if (modulationFreq > 0) {
             const lfo = audioContext.createOscillator();
@@ -88,6 +164,9 @@
 
             lfo.connect(lfoGain).connect(oscillator.frequency);
             lfo.start();
+
+            // Add LFO to oscillators array for cleanup
+            oscillators.push(lfo);
           }
 
           return oscillator;
@@ -95,6 +174,8 @@
 
         // Generate layers of sound
         function generateSoundscape() {
+          if (!isPlaying) return;
+
           const currentTime = new Date().getHours();
 
           // Base layer (drone)
@@ -104,13 +185,28 @@
           createOscillator(200 + (currentTime % 12) * 10, 0.1, 0.1);
 
           // Random chirps
-          setInterval(() => {
+          const chirpInterval = setInterval(() => {
+            if (!isPlaying) return;
+
             const chirpOscillator = createOscillator(
               Math.random() * 2000 + 500,
               0.05
             );
-            setTimeout(() => chirpOscillator.stop(), 300); // Short burst
+            setTimeout(() => {
+              try {
+                chirpOscillator.stop();
+                // Remove from oscillators array
+                const index = oscillators.indexOf(chirpOscillator);
+                if (index > -1) {
+                  oscillators.splice(index, 1);
+                }
+              } catch (e) {
+                // Oscillator might already be stopped
+              }
+            }, 300); // Short burst
           }, 4000);
+
+          intervals.push(chirpInterval);
         }
 
         generateSoundscape();

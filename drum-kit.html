@@ -424,6 +424,8 @@
           );
 
           noise.connect(gainNode).connect(filter).connect(this.masterGain);
+          noise.start();
+          noise.stop(this.audioContext.currentTime + 0.1);
         }
 
         playCrash() {
@@ -584,12 +586,16 @@
             this.audioContext.currentTime + 0.2
           );
 
+          // Connect noise through the processing chain
           noise
             .connect(gainNode)
             .connect(filter)
             .connect(delay)
             .connect(this.masterGain);
-          noise.connect(gainNode).connect(filter).connect(this.masterGain);
+
+          // Start the noise source
+          noise.start();
+          noise.stop(this.audioContext.currentTime + 0.2);
         }
 
         createNoise() {
