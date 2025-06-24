@@ -490,8 +490,8 @@
           // Update chord highlighting
           this.updateChordHighlight(bar);
 
-          // Play chord on beat 1 of each bar, or bass note on other beats
-          if (beatInBar === 0) {
+          // Play chord on beat 2 and 4 of each bar, or bass note on other beats
+          if (beatInBar === 1 || beatInBar === 3) {
             this.playChord(chord, time);
           } else {
             this.playBassNote(this.chordNotes[chord][0], time);
