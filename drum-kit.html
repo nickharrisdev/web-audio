@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Audio Drum Kit</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background: linear-gradient(135deg, #2c3e50, #34495e);
+        color: white;
+        margin: 0;
+        padding: 20px;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        text-align: center;
+      }
+
+      h1 {
+        margin-bottom: 30px;
+        font-size: 2.5em;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      }
+
+      .drum-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin: 40px 0;
+      }
+
+      .drum-pad {
+        background: linear-gradient(145deg, #3498db, #2980b9);
+        border: none;
+        border-radius: 15px;
+        padding: 40px 20px;
+        color: white;
+        font-size: 1.2em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .drum-pad:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+      }
+
+      .drum-pad:active {
+        transform: translateY(2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      .drum-pad.playing {
+        background: linear-gradient(145deg, #e74c3c, #c0392b);
+        transform: scale(0.95);
+      }
+
+      .key-hint {
+        font-size: 0.8em;
+        opacity: 0.7;
+        margin-top: 10px;
+      }
+
+      .controls {
+        margin: 30px 0;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+      }
+
+      .control-group {
+        margin: 15px 0;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+
+      input[type="range"] {
+        width: 200px;
+        margin: 0 10px;
+      }
+
+      .value-display {
+        display: inline-block;
+        min-width: 30px;
+        text-align: center;
+      }
+
+      .instructions {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 30px;
+        text-align: left;
+      }
+
+      .instructions h3 {
+        margin-top: 0;
+      }
+
+      .instructions ul {
+        margin: 10px 0;
+        padding-left: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Web Audio Drum Kit</h1>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="masterVolume">Master Volume</label>
+          <input
+            type="range"
+            id="masterVolume"
+            min="0"
+            max="1"
+            step="0.01"
+            value="0.7"
+          />
+          <span class="value-display" id="masterVolumeValue">0.7</span>
+        </div>
+        <div class="control-group">
+          <label for="reverbAmount">Reverb Amount</label>
+          <input
+            type="range"
+            id="reverbAmount"
+            min="0"
+            max="1"
+            step="0.01"
+            value="0.3"
+          />
+          <span class="value-display" id="reverbAmountValue">0.3</span>
+        </div>
+      </div>
+
+      <div class="drum-grid">
+        <button class="drum-pad" data-drum="kick" data-key="Space">
+          <div>Kick Drum</div>
+          <div class="key-hint">SPACE</div>
+        </button>
+        <button class="drum-pad" data-drum="snare" data-key="KeyS">
+          <div>Snare</div>
+          <div class="key-hint">S</div>
+        </button>
+        <button class="drum-pad" data-drum="hihat" data-key="KeyH">
+          <div>Hi-Hat</div>
+          <div class="key-hint">H</div>
+        </button>
+        <button class="drum-pad" data-drum="crash" data-key="KeyC">
+          <div>Crash</div>
+          <div class="key-hint">C</div>
+        </button>
+        <button class="drum-pad" data-drum="tom1" data-key="KeyT">
+          <div>Tom 1</div>
+          <div class="key-hint">T</div>
+        </button>
+        <button class="drum-pad" data-drum="tom2" data-key="KeyY">
+          <div>Tom 2</div>
+          <div class="key-hint">Y</div>
+        </button>
+        <button class="drum-pad" data-drum="ride" data-key="KeyR">
+          <div>Ride</div>
+          <div class="key-hint">R</div>
+        </button>
+        <button class="drum-pad" data-drum="clap" data-key="KeyA">
+          <div>Clap</div>
+          <div class="key-hint">A</div>
+        </button>
+      </div>
+
+      <div class="instructions">
+        <h3>How to use:</h3>
+        <ul>
+          <li>Click on any drum pad to play the sound</li>
+          <li>Use your keyboard keys to trigger drums (shown on each pad)</li>
+          <li>
+            Adjust the master volume and reverb amount using the controls above
+          </li>
+          <li>Try creating rhythms by combining different drums!</li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      class DrumKit {
+        constructor() {
+          this.audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          this.masterGain = this.audioContext.createGain();
+          this.reverb = this.createReverb();
+
+          // Connect audio chain
+          this.masterGain.connect(this.reverb.input);
+          this.reverb.output.connect(this.audioContext.destination);
+
+          this.setupControls();
+          this.setupEventListeners();
+          this.setupKeyboardControls();
+        }
+
+        createReverb() {
+          const delay = this.audioContext.createDelay();
+          const feedback = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+          const reverbGain = this.audioContext.createGain();
+
+          delay.delayTime.value = 0.1;
+          feedback.gain.value = 0.3;
+          filter.type = "lowpass";
+          filter.frequency.value = 2000;
+          reverbGain.gain.value = 0.1;
+
+          delay.connect(feedback).connect(filter).connect(delay);
+          delay.connect(reverbGain);
+          filter.connect(reverbGain);
+
+          return { input: delay, output: reverbGain };
+        }
+
+        setupControls() {
+          const masterVolumeSlider = document.getElementById("masterVolume");
+          const reverbSlider = document.getElementById("reverbAmount");
+
+          masterVolumeSlider.addEventListener("input", (e) => {
+            this.masterGain.gain.value = e.target.value;
+            document.getElementById("masterVolumeValue").textContent =
+              e.target.value;
+          });
+
+          reverbSlider.addEventListener("input", (e) => {
+            this.reverb.output.gain.value = e.target.value * 0.3;
+            document.getElementById("reverbAmountValue").textContent =
+              e.target.value;
+          });
+        }
+
+        setupEventListeners() {
+          const drumPads = document.querySelectorAll(".drum-pad");
+          drumPads.forEach((pad) => {
+            pad.addEventListener("click", () => {
+              const drumType = pad.dataset.drum;
+              this.playDrum(drumType);
+              this.animatePad(pad);
+            });
+          });
+        }
+
+        setupKeyboardControls() {
+          const keyMap = {
+            Space: "kick",
+            KeyS: "snare",
+            KeyH: "hihat",
+            KeyC: "crash",
+            KeyT: "tom1",
+            KeyY: "tom2",
+            KeyR: "ride",
+            KeyA: "clap",
+          };
+
+          document.addEventListener("keydown", (e) => {
+            if (keyMap[e.code]) {
+              e.preventDefault();
+              this.playDrum(keyMap[e.code]);
+              this.animatePadByKey(e.code);
+            }
+          });
+        }
+
+        animatePad(pad) {
+          pad.classList.add("playing");
+          setTimeout(() => pad.classList.remove("playing"), 150);
+        }
+
+        animatePadByKey(keyCode) {
+          const pad = document.querySelector(`[data-key="${keyCode}"]`);
+          if (pad) {
+            this.animatePad(pad);
+          }
+        }
+
+        playDrum(type) {
+          switch (type) {
+            case "kick":
+              this.playKick();
+              break;
+            case "snare":
+              this.playSnare();
+              break;
+            case "hihat":
+              this.playHiHat();
+              break;
+            case "crash":
+              this.playCrash();
+              break;
+            case "tom1":
+              this.playTom1();
+              break;
+            case "tom2":
+              this.playTom2();
+              break;
+            case "ride":
+              this.playRide();
+              break;
+            case "clap":
+              this.playClap();
+              break;
+          }
+        }
+
+        playKick() {
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+
+          oscillator.frequency.setValueAtTime(
+            150,
+            this.audioContext.currentTime
+          );
+          oscillator.frequency.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.5
+          );
+
+          gainNode.gain.setValueAtTime(1, this.audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.5
+          );
+
+          filter.frequency.setValueAtTime(2000, this.audioContext.currentTime);
+          filter.frequency.exponentialRampToValueAtTime(
+            100,
+            this.audioContext.currentTime + 0.5
+          );
+
+          oscillator.connect(gainNode).connect(filter).connect(this.masterGain);
+          oscillator.start();
+          oscillator.stop(this.audioContext.currentTime + 0.5);
+        }
+
+        playSnare() {
+          const noise = this.createNoise();
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+          const highPassFilter = this.audioContext.createBiquadFilter();
+
+          // Noise component - make it louder and more prominent
+          noise.connect(gainNode);
+
+          // Tone component - make it more aggressive
+          oscillator.frequency.setValueAtTime(
+            300, // Increased from 200
+            this.audioContext.currentTime
+          );
+          oscillator.frequency.exponentialRampToValueAtTime(
+            80, // Increased from 50
+            this.audioContext.currentTime + 0.2 // Faster decay
+          );
+          oscillator.connect(gainNode);
+
+          // Make the overall sound much louder and more aggressive
+          gainNode.gain.setValueAtTime(1.2, this.audioContext.currentTime); // Increased from 0.8
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.2 // Faster decay
+          );
+
+          // Main filter - more aggressive settings
+          filter.frequency.setValueAtTime(2000, this.audioContext.currentTime); // Increased from 1000
+          filter.frequency.exponentialRampToValueAtTime(
+            200, // Increased from 100
+            this.audioContext.currentTime + 0.2
+          );
+
+          // Add high-pass filter for more harshness
+          highPassFilter.type = "highpass";
+          highPassFilter.frequency.setValueAtTime(
+            800,
+            this.audioContext.currentTime
+          );
+          highPassFilter.frequency.exponentialRampToValueAtTime(
+            400,
+            this.audioContext.currentTime + 0.2
+          );
+
+          gainNode
+            .connect(filter)
+            .connect(highPassFilter)
+            .connect(this.masterGain);
+          oscillator.start();
+          oscillator.stop(this.audioContext.currentTime + 0.2); // Faster decay
+        }
+
+        playHiHat() {
+          const noise = this.createNoise();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+
+          filter.type = "highpass";
+          filter.frequency.setValueAtTime(7000, this.audioContext.currentTime);
+          filter.frequency.exponentialRampToValueAtTime(
+            1000,
+            this.audioContext.currentTime + 0.1
+          );
+
+          gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.1
+          );
+
+          noise.connect(gainNode).connect(filter).connect(this.masterGain);
+        }
+
+        playCrash() {
+          const noise = this.createNoise();
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+
+          // Noise component
+          noise.connect(gainNode);
+
+          // Tone component
+          oscillator.frequency.setValueAtTime(
+            800,
+            this.audioContext.currentTime
+          );
+          oscillator.frequency.exponentialRampToValueAtTime(
+            200,
+            this.audioContext.currentTime + 1.0
+          );
+          oscillator.connect(gainNode);
+
+          gainNode.gain.setValueAtTime(0.6, this.audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 1.0
+          );
+
+          filter.frequency.setValueAtTime(8000, this.audioContext.currentTime);
+          filter.frequency.exponentialRampToValueAtTime(
+            1000,
+            this.audioContext.currentTime + 1.0
+          );
+
+          gainNode.connect(filter).connect(this.masterGain);
+          oscillator.start();
+          oscillator.stop(this.audioContext.currentTime + 1.0);
+        }
+
+        playTom1() {
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+
+          oscillator.frequency.setValueAtTime(
+            120,
+            this.audioContext.currentTime
+          );
+          oscillator.frequency.exponentialRampToValueAtTime(
+            60,
+            this.audioContext.currentTime + 0.4
+          );
+
+          gainNode.gain.setValueAtTime(0.7, this.audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.4
+          );
+
+          filter.frequency.setValueAtTime(1500, this.audioContext.currentTime);
+          filter.frequency.exponentialRampToValueAtTime(
+            200,
+            this.audioContext.currentTime + 0.4
+          );
+
+          oscillator.connect(gainNode).connect(filter).connect(this.masterGain);
+          oscillator.start();
+          oscillator.stop(this.audioContext.currentTime + 0.4);
+        }
+
+        playTom2() {
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+
+          oscillator.frequency.setValueAtTime(
+            80,
+            this.audioContext.currentTime
+          );
+          oscillator.frequency.exponentialRampToValueAtTime(
+            40,
+            this.audioContext.currentTime + 0.5
+          );
+
+          gainNode.gain.setValueAtTime(0.7, this.audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.5
+          );
+
+          filter.frequency.setValueAtTime(1200, this.audioContext.currentTime);
+          filter.frequency.exponentialRampToValueAtTime(
+            150,
+            this.audioContext.currentTime + 0.5
+          );
+
+          oscillator.connect(gainNode).connect(filter).connect(this.masterGain);
+          oscillator.start();
+          oscillator.stop(this.audioContext.currentTime + 0.5);
+        }
+
+        playRide() {
+          const noise = this.createNoise();
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+
+          // Noise component
+          noise.connect(gainNode);
+
+          // Tone component
+          oscillator.frequency.setValueAtTime(
+            600,
+            this.audioContext.currentTime
+          );
+          oscillator.frequency.exponentialRampToValueAtTime(
+            300,
+            this.audioContext.currentTime + 0.8
+          );
+          oscillator.connect(gainNode);
+
+          gainNode.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.8
+          );
+
+          filter.frequency.setValueAtTime(6000, this.audioContext.currentTime);
+          filter.frequency.exponentialRampToValueAtTime(
+            800,
+            this.audioContext.currentTime + 0.8
+          );
+
+          gainNode.connect(filter).connect(this.masterGain);
+          oscillator.start();
+          oscillator.stop(this.audioContext.currentTime + 0.8);
+        }
+
+        playClap() {
+          const noise = this.createNoise();
+          const gainNode = this.audioContext.createGain();
+          const filter = this.audioContext.createBiquadFilter();
+          const delay = this.audioContext.createDelay();
+
+          // Create clap effect with delay
+          delay.delayTime.value = 0.02;
+
+          filter.type = "bandpass";
+          filter.frequency.setValueAtTime(1000, this.audioContext.currentTime);
+          filter.frequency.exponentialRampToValueAtTime(
+            500,
+            this.audioContext.currentTime + 0.2
+          );
+
+          gainNode.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            this.audioContext.currentTime + 0.2
+          );
+
+          noise
+            .connect(gainNode)
+            .connect(filter)
+            .connect(delay)
+            .connect(this.masterGain);
+          noise.connect(gainNode).connect(filter).connect(this.masterGain);
+        }
+
+        createNoise() {
+          const bufferSize = this.audioContext.sampleRate * 0.1;
+          const buffer = this.audioContext.createBuffer(
+            1,
+            bufferSize,
+            this.audioContext.sampleRate
+          );
+          const output = buffer.getChannelData(0);
+
+          for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = this.audioContext.createBufferSource();
+          noise.buffer = buffer;
+          return noise;
+        }
+      }
+
+      // Initialize drum kit when page loads
+      document.addEventListener("DOMContentLoaded", () => {
+        new DrumKit();
+      });
+    </script>
+  </body>
+</html>

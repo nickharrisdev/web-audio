@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contemplation - Heavenly Synth</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(
+          135deg,
+          #0c0c0c 0%,
+          #1a1a2e 50%,
+          #16213e 100%
+        );
+        font-family: "Arial", sans-serif;
+        color: #fff;
+        overflow: hidden;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .container {
+        text-align: center;
+        z-index: 10;
+      }
+
+      h1 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #a8e6cf, #dcedc1, #ffd3b6, #ffaaa5);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: glow 3s ease-in-out infinite alternate;
+      }
+
+      @keyframes glow {
+        from {
+          filter: drop-shadow(0 0 10px rgba(168, 230, 207, 0.5));
+        }
+        to {
+          filter: drop-shadow(0 0 20px rgba(168, 230, 207, 0.8));
+        }
+      }
+
+      .controls {
+        margin: 2rem 0;
+      }
+
+      button {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 12px 24px;
+        margin: 0 10px;
+        border-radius: 25px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+      }
+
+      button:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .status {
+        margin-top: 1rem;
+        font-size: 1.1rem;
+        opacity: 0.8;
+      }
+
+      .visualizer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .particle {
+        position: absolute;
+        background: radial-gradient(
+          circle,
+          rgba(168, 230, 207, 0.6) 0%,
+          transparent 70%
+        );
+        border-radius: 50%;
+        animation: float 8s infinite ease-in-out;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(100vh) scale(0);
+          opacity: 0;
+        }
+        10% {
+          opacity: 0.8;
+          transform: translateY(90vh) scale(1);
+        }
+        90% {
+          opacity: 0.8;
+          transform: translateY(10vh) scale(1);
+        }
+      }
+
+      .chord-display {
+        position: fixed;
+        bottom: 2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.3);
+        padding: 1rem 2rem;
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-family: "Courier New", monospace;
+        font-size: 1.2rem;
+        color: #a8e6cf;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="visualizer" id="visualizer"></div>
+
+    <div class="container">
+      <h1>Contemplation</h1>
+      <div class="controls">
+        <button id="playBtn">Begin Contemplation</button>
+        <button id="stopBtn">Pause</button>
+      </div>
+      <div class="status" id="status">Ready to begin your journey...</div>
+    </div>
+
+    <div class="chord-display" id="chordDisplay">Current: Awaiting...</div>
+
+    <script>
+      class ContemplativeSynth {
+        constructor() {
+          this.audioContext = null;
+          this.isPlaying = false;
+          this.currentChord = 0;
+          this.chordProgression = [
+            // Heavenly major 7th chords with extensions
+            ["C4", "E4", "G4", "B4", "D5"], // Cmaj9
+            ["F4", "A4", "C5", "E5", "G5"], // Fmaj9
+            ["G4", "B4", "D5", "F#5", "A5"], // Gmaj9
+            ["A4", "C#5", "E5", "G#5", "B5"], // Amaj9
+            ["D4", "F#4", "A4", "C#5", "E5"], // Dmaj9
+            ["E4", "G#4", "B4", "D#5", "F#5"], // Emaj9
+            ["B4", "D#5", "F#5", "A#5", "C#6"], // Bmaj9
+            ["C#5", "F5", "G#5", "C6", "D#6"], // C#maj9
+          ];
+
+          this.chordNames = [
+            "Cmaj9",
+            "Fmaj9",
+            "Gmaj9",
+            "Amaj9",
+            "Dmaj9",
+            "Emaj9",
+            "Bmaj9",
+            "C#maj9",
+          ];
+
+          this.activeOscillators = [];
+          this.lfo = null;
+          this.filter = null;
+          this.reverb = null;
+          this.delay = null;
+
+          this.setupEventListeners();
+          this.createParticles();
+        }
+
+        async initialize() {
+          try {
+            this.audioContext = new (window.AudioContext ||
+              window.webkitAudioContext)();
+
+            // Create LFO for subtle modulation
+            this.lfo = this.audioContext.createOscillator();
+            this.lfo.frequency.setValueAtTime(
+              0.1,
+              this.audioContext.currentTime
+            );
+            this.lfo.start();
+
+            // Create filter for warmth
+            this.filter = this.audioContext.createBiquadFilter();
+            this.filter.type = "lowpass";
+            this.filter.frequency.setValueAtTime(
+              2000,
+              this.audioContext.currentTime
+            );
+            this.filter.Q.setValueAtTime(0.5, this.audioContext.currentTime);
+
+            // Create reverb for space
+            this.reverb = this.audioContext.createConvolver();
+            this.createReverb();
+
+            // Create delay for depth
+            this.delay = this.audioContext.createDelay();
+            this.delay.delayTime.setValueAtTime(
+              0.3,
+              this.audioContext.currentTime
+            );
+
+            // Connect the audio chain
+            this.lfo.connect(this.filter.frequency);
+            this.filter.connect(this.reverb);
+            this.reverb.connect(this.delay);
+            this.delay.connect(this.audioContext.destination);
+
+            document.getElementById("status").textContent =
+              "Audio system initialized";
+          } catch (error) {
+            console.error("Audio initialization failed:", error);
+            document.getElementById("status").textContent =
+              "Audio initialization failed";
+          }
+        }
+
+        createReverb() {
+          const sampleRate = this.audioContext.sampleRate;
+          const length = sampleRate * 2; // 2 second reverb
+          const impulse = this.audioContext.createBuffer(2, length, sampleRate);
+
+          for (let channel = 0; channel < 2; channel++) {
+            const channelData = impulse.getChannelData(channel);
+            for (let i = 0; i < length; i++) {
+              channelData[i] =
+                (Math.random() * 2 - 1) * Math.exp(-i / (sampleRate * 0.5));
+            }
+          }
+
+          this.reverb.buffer = impulse;
+        }
+
+        noteToFrequency(note) {
+          const notes = {
+            C: 0,
+            "C#": 1,
+            D: 2,
+            "D#": 3,
+            E: 4,
+            F: 5,
+            "F#": 6,
+            G: 7,
+            "G#": 8,
+            A: 9,
+            "A#": 10,
+            B: 11,
+          };
+          const noteName = note.slice(0, -1);
+          const octave = parseInt(note.slice(-1));
+          const noteNumber = notes[noteName] + (octave + 1) * 12;
+          return 440 * Math.pow(2, (noteNumber - 69) / 12);
+        }
+
+        createOscillator(frequency, type = "sine") {
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+
+          oscillator.type = type;
+          oscillator.frequency.setValueAtTime(
+            frequency,
+            this.audioContext.currentTime
+          );
+
+          // Add subtle detuning for richness
+          const detune = (Math.random() - 0.5) * 2;
+          oscillator.detune.setValueAtTime(
+            detune,
+            this.audioContext.currentTime
+          );
+
+          // Create envelope
+          const now = this.audioContext.currentTime;
+          gainNode.gain.setValueAtTime(0, now);
+          gainNode.gain.linearRampToValueAtTime(0.3, now + 0.1);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, now + 8);
+
+          oscillator.connect(gainNode);
+          gainNode.connect(this.filter);
+
+          return { oscillator, gainNode };
+        }
+
+        playChord() {
+          // Stop previous chord
+          this.stopCurrentChord();
+
+          const chord = this.chordProgression[this.currentChord];
+          const chordName = this.chordNames[this.currentChord];
+
+          // Update display
+          document.getElementById(
+            "chordDisplay"
+          ).textContent = `Current: ${chordName}`;
+
+          // Create oscillators for each note
+          chord.forEach((note, index) => {
+            const frequency = this.noteToFrequency(note);
+
+            // Use different waveforms for richness
+            const waveforms = ["sine", "triangle", "sine"];
+            const waveform = waveforms[index % waveforms.length];
+
+            const { oscillator, gainNode } = this.createOscillator(
+              frequency,
+              waveform
+            );
+
+            // Add slight delay for each voice
+            const delay = this.audioContext.createDelay();
+            delay.delayTime.setValueAtTime(
+              index * 0.05,
+              this.audioContext.currentTime
+            );
+
+            oscillator.connect(delay);
+            delay.connect(gainNode);
+
+            this.activeOscillators.push({ oscillator, gainNode });
+            oscillator.start();
+          });
+
+          // Move to next chord
+          this.currentChord =
+            (this.currentChord + 1) % this.chordProgression.length;
+        }
+
+        stopCurrentChord() {
+          this.activeOscillators.forEach(({ oscillator, gainNode }) => {
+            const now = this.audioContext.currentTime;
+            gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            setTimeout(() => oscillator.stop(), 500);
+          });
+          this.activeOscillators = [];
+        }
+
+        start() {
+          if (!this.audioContext) {
+            this.initialize().then(() => this.start());
+            return;
+          }
+
+          if (this.audioContext.state === "suspended") {
+            this.audioContext.resume();
+          }
+
+          this.isPlaying = true;
+          document.getElementById("status").textContent =
+            "Floating in contemplation...";
+
+          // Play first chord immediately
+          this.playChord();
+
+          // Schedule chord changes
+          this.scheduleNextChord();
+        }
+
+        scheduleNextChord() {
+          if (!this.isPlaying) return;
+
+          // Random timing between 4-8 seconds for organic feel
+          const nextTime = 4 + Math.random() * 4;
+
+          setTimeout(() => {
+            if (this.isPlaying) {
+              this.playChord();
+              this.scheduleNextChord();
+            }
+          }, nextTime * 1000);
+        }
+
+        stop() {
+          this.isPlaying = false;
+          this.stopCurrentChord();
+          document.getElementById("status").textContent =
+            "Contemplation paused...";
+          document.getElementById("chordDisplay").textContent =
+            "Current: Paused";
+        }
+
+        createParticles() {
+          const visualizer = document.getElementById("visualizer");
+
+          setInterval(() => {
+            if (!this.isPlaying) return;
+
+            const particle = document.createElement("div");
+            particle.className = "particle";
+
+            const size = 20 + Math.random() * 60;
+            const x = Math.random() * window.innerWidth;
+            const duration = 6 + Math.random() * 4;
+
+            particle.style.width = size + "px";
+            particle.style.height = size + "px";
+            particle.style.left = x + "px";
+            particle.style.animationDuration = duration + "s";
+
+            visualizer.appendChild(particle);
+
+            // Remove particle after animation
+            setTimeout(() => {
+              if (particle.parentNode) {
+                particle.parentNode.removeChild(particle);
+              }
+            }, duration * 1000);
+          }, 200);
+        }
+
+        setupEventListeners() {
+          document.getElementById("playBtn").addEventListener("click", () => {
+            if (this.isPlaying) {
+              this.stop();
+              document.getElementById("playBtn").textContent =
+                "Begin Contemplation";
+            } else {
+              this.start();
+              document.getElementById("playBtn").textContent =
+                "Pause Contemplation";
+            }
+          });
+
+          document.getElementById("stopBtn").addEventListener("click", () => {
+            this.stop();
+            document.getElementById("playBtn").textContent =
+              "Begin Contemplation";
+          });
+        }
+      }
+
+      // Initialize the synth when page loads
+      window.addEventListener("load", () => {
+        const synth = new ContemplativeSynth();
+      });
+    </script>
+  </body>
+</html>

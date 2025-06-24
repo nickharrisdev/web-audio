@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Somewhere Over the Rainbow - Web Audio</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        color: white;
+      }
+
+      .container {
+        max-width: 1200px;
+        width: 100%;
+        text-align: center;
+      }
+
+      h1 {
+        font-size: 3rem;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        background: linear-gradient(45deg, #ffd700, #ffed4e);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .subtitle {
+        font-size: 1.2rem;
+        margin-bottom: 30px;
+        opacity: 0.9;
+      }
+
+      .controls {
+        margin-bottom: 30px;
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      button {
+        padding: 12px 24px;
+        font-size: 1rem;
+        border: none;
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .play-btn {
+        background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+        color: white;
+      }
+
+      .play-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+      }
+
+      .stop-btn {
+        background: linear-gradient(45deg, #4834d4, #686de0);
+        color: white;
+      }
+
+      .stop-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(72, 52, 212, 0.4);
+      }
+
+      .piano-container {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .piano {
+        display: flex;
+        justify-content: center;
+        gap: 2px;
+        margin-bottom: 20px;
+      }
+
+      .key {
+        width: 60px;
+        height: 200px;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 0 0 8px 8px;
+        cursor: pointer;
+        transition: all 0.1s ease;
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding-bottom: 10px;
+        font-weight: bold;
+        color: #333;
+      }
+
+      .key:hover {
+        background: #f0f0f0;
+      }
+
+      .key.active {
+        background: linear-gradient(45deg, #ffd700, #ffed4e);
+        transform: translateY(2px);
+      }
+
+      .black-key {
+        width: 40px;
+        height: 120px;
+        background: #333;
+        color: white;
+        position: absolute;
+        margin-left: -20px;
+        z-index: 2;
+      }
+
+      .black-key:hover {
+        background: #555;
+      }
+
+      .black-key.active {
+        background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+      }
+
+      .sheet-music {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .sheet-music h3 {
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+      }
+
+      .note-display {
+        font-family: "Courier New", monospace;
+        font-size: 1.2rem;
+        line-height: 1.6;
+        text-align: left;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 20px;
+        border-radius: 10px;
+        white-space: pre-wrap;
+      }
+
+      .current-note {
+        background: linear-gradient(45deg, #ffd700, #ffed4e);
+        color: #333;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+
+      .info {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .info h3 {
+        margin-bottom: 15px;
+      }
+
+      .info p {
+        line-height: 1.6;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Somewhere Over the Rainbow</h1>
+      <p class="subtitle">Interactive Web Audio Experience</p>
+
+      <div class="controls">
+        <button class="play-btn" onclick="playSong()">Play Song</button>
+        <button class="stop-btn" onclick="stopSong()">Stop</button>
+      </div>
+
+      <div class="piano-container">
+        <h3>Interactive Piano</h3>
+        <div class="piano">
+          <div class="key" data-note="C4" onclick="playNote('C4')">C</div>
+          <div class="key black-key" data-note="C#4" onclick="playNote('C#4')">
+            C#
+          </div>
+          <div class="key" data-note="D4" onclick="playNote('D4')">D</div>
+          <div class="key black-key" data-note="D#4" onclick="playNote('D#4')">
+            D#
+          </div>
+          <div class="key" data-note="E4" onclick="playNote('E4')">E</div>
+          <div class="key" data-note="F4" onclick="playNote('F4')">F</div>
+          <div class="key black-key" data-note="F#4" onclick="playNote('F#4')">
+            F#
+          </div>
+          <div class="key" data-note="G4" onclick="playNote('G4')">G</div>
+          <div class="key black-key" data-note="G#4" onclick="playNote('G#4')">
+            G#
+          </div>
+          <div class="key" data-note="A4" onclick="playNote('A4')">A</div>
+          <div class="key black-key" data-note="A#4" onclick="playNote('A#4')">
+            A#
+          </div>
+          <div class="key" data-note="B4" onclick="playNote('B4')">B</div>
+          <div class="key" data-note="C5" onclick="playNote('C5')">C</div>
+        </div>
+      </div>
+
+      <div class="sheet-music">
+        <h3>Sheet Music</h3>
+        <div class="note-display" id="sheetMusic">
+          Somewhere over the rainbow Way up high There's a land that I heard of
+          Once in a lullaby Somewhere over the rainbow Skies are blue And the
+          dreams that you dare to dream Really do come true
+        </div>
+      </div>
+
+      <div class="info">
+        <h3>About the Song</h3>
+        <p>
+          <strong>"Somewhere Over the Rainbow"</strong> was written by Harold
+          Arlen (music) and Yip Harburg (lyrics) for the 1939 film "The Wizard
+          of Oz."
+        </p>
+        <p>
+          Judy Garland's performance as Dorothy made this song an instant
+          classic, and it has since become one of the most beloved songs in
+          American music history.
+        </p>
+        <p>
+          The song is in the key of C major and features a distinctive octave
+          leap at the beginning that perfectly captures the sense of wonder and
+          longing.
+        </p>
+      </div>
+    </div>
+
+    <script>
+      // Web Audio API setup
+      const audioContext = new (window.AudioContext ||
+        window.webkitAudioContext)();
+      const oscillators = new Map();
+      const gainNodes = new Map();
+
+      // Note frequencies (C4 to C5)
+      const noteFrequencies = {
+        C4: 261.63,
+        "C#4": 277.18,
+        D4: 293.66,
+        "D#4": 311.13,
+        E4: 329.63,
+        F4: 349.23,
+        "F#4": 369.99,
+        G4: 392.0,
+        "G#4": 415.3,
+        A4: 440.0,
+        "A#4": 466.16,
+        B4: 493.88,
+        C5: 523.25,
+      };
+
+      // Song melody data (simplified version)
+      const songMelody = [
+        { note: "C5", duration: 0.8, lyric: "Some" },
+        { note: "C4", duration: 0.4, lyric: "where" },
+        { note: "E4", duration: 0.4, lyric: "o" },
+        { note: "F4", duration: 0.4, lyric: "ver" },
+        { note: "G4", duration: 0.8, lyric: "the" },
+        { note: "C5", duration: 1.2, lyric: "rain" },
+        { note: "G4", duration: 0.8, lyric: "bow" },
+        { note: "F4", duration: 0.8, lyric: "way" },
+        { note: "E4", duration: 0.4, lyric: "up" },
+        { note: "D4", duration: 0.4, lyric: "high" },
+        { note: "C4", duration: 1.2, lyric: "there's" },
+        { note: "E4", duration: 0.8, lyric: "a" },
+        { note: "G4", duration: 0.8, lyric: "land" },
+        { note: "C5", duration: 1.2, lyric: "that" },
+        { note: "G4", duration: 0.8, lyric: "I" },
+        { note: "F4", duration: 0.8, lyric: "heard" },
+        { note: "E4", duration: 0.4, lyric: "of" },
+        { note: "D4", duration: 0.4, lyric: "once" },
+        { note: "C4", duration: 1.2, lyric: "in" },
+        { note: "E4", duration: 0.8, lyric: "a" },
+        { note: "G4", duration: 0.8, lyric: "lul" },
+        { note: "C5", duration: 1.2, lyric: "la" },
+        { note: "G4", duration: 0.8, lyric: "by" },
+      ];
+
+      let isPlaying = false;
+      let currentNoteIndex = 0;
+
+      function createOscillator(frequency) {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.setValueAtTime(
+          frequency,
+          audioContext.currentTime
+        );
+        oscillator.type = "sine";
+
+        // Envelope
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(
+          0.3,
+          audioContext.currentTime + 0.01
+        );
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          audioContext.currentTime + 0.5
+        );
+
+        return { oscillator, gainNode };
+      }
+
+      function playNote(note) {
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+
+        const frequency = noteFrequencies[note];
+        if (!frequency) return;
+
+        const { oscillator, gainNode } = createOscillator(frequency);
+
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.5);
+
+        // Visual feedback
+        const key = document.querySelector(`[data-note="${note}"]`);
+        if (key) {
+          key.classList.add("active");
+          setTimeout(() => key.classList.remove("active"), 500);
+        }
+      }
+
+      function playSong() {
+        if (isPlaying) return;
+
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+
+        isPlaying = true;
+        currentNoteIndex = 0;
+        playNextNote();
+      }
+
+      function playNextNote() {
+        if (!isPlaying || currentNoteIndex >= songMelody.length) {
+          isPlaying = false;
+          return;
+        }
+
+        const noteData = songMelody[currentNoteIndex];
+        const frequency = noteFrequencies[noteData.note];
+
+        if (frequency) {
+          const { oscillator, gainNode } = createOscillator(frequency);
+          oscillator.start();
+          oscillator.stop(audioContext.currentTime + noteData.duration);
+
+          // Visual feedback
+          const key = document.querySelector(`[data-note="${noteData.note}"]`);
+          if (key) {
+            key.classList.add("active");
+            setTimeout(
+              () => key.classList.remove("active"),
+              noteData.duration * 1000
+            );
+          }
+
+          // Update sheet music display
+          updateSheetMusic(noteData.lyric);
+        }
+
+        currentNoteIndex++;
+        setTimeout(playNextNote, noteData.duration * 1000);
+      }
+
+      function stopSong() {
+        isPlaying = false;
+        // Stop all oscillators
+        oscillators.forEach((osc) => osc.stop());
+        oscillators.clear();
+        gainNodes.clear();
+
+        // Reset visual state
+        document
+          .querySelectorAll(".key")
+          .forEach((key) => key.classList.remove("active"));
+        document.getElementById("sheetMusic").innerHTML = `
+                Somewhere over the rainbow
+                Way up high
+                There's a land that I heard of
+                Once in a lullaby
+                
+                Somewhere over the rainbow
+                Skies are blue
+                And the dreams that you dare to dream
+                Really do come true
+            `;
+      }
+
+      function updateSheetMusic(currentLyric) {
+        const sheetMusic = document.getElementById("sheetMusic");
+        const lyrics = [
+          "Somewhere over the rainbow",
+          "Way up high",
+          "There's a land that I heard of",
+          "Once in a lullaby",
+          "",
+          "Somewhere over the rainbow",
+          "Skies are blue",
+          "And the dreams that you dare to dream",
+          "Really do come true",
+        ];
+
+        // Highlight current word
+        const highlightedLyrics = lyrics.map((line) => {
+          if (line.includes(currentLyric)) {
+            return line.replace(
+              currentLyric,
+              `<span class="current-note">${currentLyric}</span>`
+            );
+          }
+          return line;
+        });
+
+        sheetMusic.innerHTML = highlightedLyrics.join("\n");
+      }
+
+      // Keyboard controls
+      document.addEventListener("keydown", (e) => {
+        const keyMap = {
+          a: "C4",
+          w: "C#4",
+          s: "D4",
+          e: "D#4",
+          d: "E4",
+          f: "F4",
+          t: "F#4",
+          g: "G4",
+          y: "G#4",
+          h: "A4",
+          u: "A#4",
+          j: "B4",
+          k: "C5",
+        };
+
+        const note = keyMap[e.key.toLowerCase()];
+        if (note) {
+          playNote(note);
+        }
+      });
+
+      // Initialize audio context on first interaction
+      document.addEventListener(
+        "click",
+        () => {
+          if (audioContext.state === "suspended") {
+            audioContext.resume();
+          }
+        },
+        { once: true }
+      );
+    </script>
+  </body>
+</html>
